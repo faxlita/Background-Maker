@@ -121,6 +121,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
   <div class="tab" onclick="switchTab('text')">Texte</div>
   <div class="tab" onclick="switchTab('lower')">Lower</div>
   <div class="tab" onclick="switchTab('export')">Export</div>
+  <div class="tab" onclick="switchTab('ai')">IA ✨</div>
 </div>
 <!-- TAB LAYERS -->
 <div class="tab-content on" id="tab-layers">
@@ -465,6 +466,36 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
   <p><b>Option 2 — Vidéo en boucle</b><br>Exportez en WebM puis :<br><code>Add Input → Video → Loop ✓</code></p>
 </div>
 </div>
+<!-- TAB AI -->
+<div class="tab-content" id="tab-ai">
+<p class="sec">Générateur d'ambiance IA</p>
+<div class="hint" style="margin-bottom:6px;">Décris l'ambiance voulue en français, l'IA choisit les calques, couleurs, vitesses et le style du texte à ta place.</div>
+<div class="field">
+  <label>Description de l'ambiance</label>
+  <textarea id="ai_prompt" style="min-height:70px;" placeholder="Ex: Ouverture JT sobre, bleu marine et or, effet verre premium, très institutionnel..."></textarea>
+</div>
+<div class="preset-row" style="flex-wrap:wrap;gap:4px;">
+  <button class="pbtn" onclick="fillAIPrompt('Ouverture JT sobre et institutionnelle, bleu marine et or, très professionnel')">Ouverture JT</button>
+  <button class="pbtn" onclick="fillAIPrompt('Ambiance buzz réseaux sociaux, énergique, néons violets et cyan, glitch')">Buzz réseaux</button>
+  <button class="pbtn" onclick="fillAIPrompt('Débat politique tendu, rouge sombre, éclairs, grille lumineuse')">Débat tendu</button>
+  <button class="pbtn" onclick="fillAIPrompt('Chronique éducation calme, vert et or, aurore boréale douce, texte élégant')">Éducation calme</button>
+</div>
+<p class="sec">Clé API Anthropic</p>
+<div class="field">
+  <div class="crow"><input type="text" id="ai_apikey" placeholder="sk-ant-..." style="font-family:monospace;" oninput="localStorage.setItem('ai_api_key',this.value)"></div>
+</div>
+<div class="hint" style="margin-bottom:6px;">Stockée uniquement dans ton navigateur (localStorage), envoyée uniquement à l'API Anthropic pour cette génération. <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--gold);">Obtenir une clé →</a></div>
+<div class="srow"><label>Modèle</label>
+  <select id="ai_model" onchange="localStorage.setItem('ai_model',this.value)">
+    <option value="claude-sonnet-5" selected>Sonnet 5 (recommandé)</option>
+    <option value="claude-opus-4-8">Opus 4.8 (qualité max)</option>
+    <option value="claude-haiku-4-5-20251001">Haiku 4.5 (rapide)</option>
+  </select>
+</div>
+<button class="btn" id="ai-generate-btn" style="width:100%;margin-top:6px;" onclick="generateAIPreset()">✨ Générer l'ambiance</button>
+<div class="rss-status" id="ai-status"></div>
+<div class="hint" style="margin-top:6px;">L'IA réinitialise les calques puis applique sa proposition. Utilise <kbd>Z</kbd> (Undo) pour revenir en arrière si le résultat ne te plaît pas.</div>
+</div>
 </div><!-- /sidebar -->
 <div id="main">
   <div id="preview"><canvas id="canvas"></canvas></div>
@@ -558,6 +589,110 @@ function setPos(type,pos,el){
   else if(type==='logo')logoPos=pos;
 }
 
+/* ===== v7 — Générateur d'ambiance IA ===== */
+const AI_LAYER_IDS=['l_bg','l_parts','l_diag','l_circles','l_grid','l_glow','l_hex','l_wave','l_data','l_godrays','l_neon','l_floor','l_texture','l_nebula','l_rain','l_scanlines','l_lightning','l_glitch','l_aurora','l_smoke','l_cubes','l_rect2d','l_colorycle'];
+
+const AI_SYSTEM_PROMPT=`Tu es le moteur de style d'un logiciel de fonds animés pour la télévision/streaming (broadcast background creator, rendu Canvas 2D). L'utilisateur décrit une ambiance en français. Tu dois répondre UNIQUEMENT avec un objet JSON strict (pas de \`\`\`, pas de texte avant/après, pas de commentaires) qui définit les réglages de cette ambiance.
+
+Le JSON ne doit contenir QUE des clés parmi la liste ci-dessous, avec des valeurs respectant strictement les types/plages/options indiqués. N'inclus jamais une clé si tu ne veux pas la changer.
+
+CALQUES (booléen true/false — choisis 3 à 7 calques activés maximum pour rester lisible, jamais tous en même temps) :
+l_bg (fond dégradé, garde presque toujours à true), l_parts (particules/étoiles), l_diag (lignes diagonales), l_circles (cercles/ondes), l_grid (grille lumineuse), l_glow (lueur radiale), l_hex (hexagones), l_wave (vagues fluides), l_data (flux de données), l_godrays (rayons de lumière), l_neon (néons), l_floor (reflet sol), l_texture (texture marbre/verre/métal/carbone), l_nebula (nébuleuse), l_rain (pluie/neige), l_scanlines (scanlines TV rétro), l_lightning (éclairs), l_glitch (glitch numérique), l_aurora (aurore boréale), l_smoke (fumée/nuages), l_cubes (cubes 3D flottants), l_rect2d (rectangles 2D flottants), l_colorycle (cycle de couleur automatique, à activer seulement si l'ambiance doit changer de couleur dans le temps).
+
+OPACITÉS des calques (nombre, une clé o_X pour chaque calque l_X que tu actives, respecte les bornes) :
+o_bg[0-1] o_parts[0-1] o_diag[0-0.5] o_circles[0-0.3] o_grid[0-0.5] o_glow[0-1] o_hex[0-0.4] o_wave[0-0.5] o_data[0-0.5] o_godrays[0-0.5] o_neon[0-0.8] o_floor[0-0.8] o_texture[0-0.5] o_nebula[0-0.6] o_rain[0-0.8] o_scanlines[0-0.3] o_lightning[0-1] o_glitch[0-1] o_aurora[0-0.8] o_smoke[0-0.6] o_cubes[0-1] o_rect2d[0-1]
+
+VITESSES (nombre) :
+s_parts[0-10] s_diag[0-8] s_circ[0-5] s_grid[0-5] s_hex[0-5] s_wave[0-5] s_data[0-10] s_rain[0-15] s_aurora[0-3] s_smoke[0-5] s_cubes[0-5] s_rect2d[0-5] s_cycle[5-120] (durée du cycle de couleur en secondes)
+
+QUANTITÉS / TAILLES (nombre) :
+n_cubes[3-30] n_rect2d[3-50] sz_cube_min[10-200] sz_cube_max[30-400] sz_rect_min[10-200] sz_rect_max[30-600] sz_hex[10-200] sz_circles[0.02-0.5] sz_parts[0.5-6] sz_rain[0.5-5] d_parts[1000-15000] (densité particules)
+
+OPTIONS (string — choisis EXACTEMENT une des valeurs listées) :
+rain_type: "rain" | "snow"
+style_rect2d: "stroke" | "fill" | "both"
+neon_style: "lines" | "circles" | "mixed"
+texture_type: "marble" | "glass" | "metal" | "carbon"
+floor_type: "reflect" | "grid" | "marble"
+
+COULEURS (string hex "#rrggbb") :
+c_bg (fond principal, toujours sombre pour un fond broadcast), c_bg2 (fond secondaire, proche de c_bg), c_glow (accent/lueur principal), c_gold (couleur des particules/accents dorés), c_line (lignes), c_aurora (aurore), c_neon1, c_neon2 (2 couleurs néon), c_floor (reflet sol)
+
+TITRE (optionnel, ne touche que si pertinent) :
+t_show_title (bool), t_title_font (string — choisis EXACTEMENT une valeur parmi : "Roboto,sans-serif" | "Montserrat,sans-serif" | "Poppins,sans-serif" | "Inter,sans-serif" | "'Space Grotesk',sans-serif" | "Rajdhani,sans-serif" | "Georgia,serif" | "'Playfair Display',serif" | "Cinzel,serif" | "'Bebas Neue',cursive" | "Anton,sans-serif" | "Oswald,sans-serif" | "Orbitron,sans-serif" | "Audiowide,cursive" | "'JetBrains Mono',monospace" | "'Courier New',monospace" | "Pacifico,cursive" | "'Dancing Script',cursive"), t_title_color (hex), t_title_size[12-200], t_title_opacity[0-1], t_title_spacing[-5 à 30], t_title_lh[0.8-3] (interligne), t_title_shadow[0-40], t_title_bg_on (bool), t_title_bg (hex), t_title_stroke_on (bool), t_title_stroke (hex), t_title_sw[0-10] (épaisseur contour)
+
+TICKER (optionnel) :
+t_show_ticker (bool), t_ticker_font (choisis EXACTEMENT parmi : "sans-serif" | "Roboto,sans-serif" | "Montserrat,sans-serif" | "Oswald,sans-serif" | "'Bebas Neue',cursive" | "Orbitron,sans-serif" | "'Titillium Web',sans-serif" | "'Courier New',monospace"), t_ticker_color (hex), t_ticker_bg (hex), t_ticker_speed[0.5-8], t_ticker_size[10-60]
+
+RÈGLES IMPORTANTES :
+- Ne renvoie JAMAIS les clés t_title, t_ticker, t_wm, lt_name, lt_sub (contenu texte) sauf si l'utilisateur demande explicitement un texte précis dans sa description — sinon laisse le texte existant intact en omettant ces clés.
+- Reste cohérent : une ambiance "sobre/institutionnelle" doit avoir peu de calques et des opacités basses ; une ambiance "énergique/buzz" peut avoir plus de mouvement et de calques.
+- Les couleurs de fond (c_bg, c_bg2) doivent toujours rester sombres (broadcast = fond de plateau, pas un fond clair).
+- Réponds uniquement avec le JSON, rien d'autre.`;
+
+function fillAIPrompt(txt){document.getElementById('ai_prompt').value=txt;}
+
+function mirrorColorPairs(){
+  document.querySelectorAll('#sidebar input[type=color]').forEach(c=>{
+    const t=document.getElementById(c.id+'T');if(t)t.value=c.value;
+  });
+}
+
+async function generateAIPreset(){
+  const promptEl=document.getElementById('ai_prompt');
+  const prompt=promptEl.value.trim();
+  const statusEl=document.getElementById('ai-status');
+  if(!prompt){statusEl.className='rss-status err';statusEl.textContent="⚠️ Décris d'abord l'ambiance souhaitée.";return;}
+  const apiKey=document.getElementById('ai_apikey').value.trim();
+  if(!apiKey){statusEl.className='rss-status err';statusEl.textContent='⚠️ Renseigne ta clé API Anthropic ci-dessus.';return;}
+  localStorage.setItem('ai_api_key',apiKey);
+  const model=document.getElementById('ai_model').value;
+  localStorage.setItem('ai_model',model);
+  const btn=document.getElementById('ai-generate-btn');
+  const oldTxt=btn.textContent;
+  btn.disabled=true;btn.textContent='⏳ Génération en cours...';
+  statusEl.className='rss-status';statusEl.textContent='';
+  document.getElementById('status').textContent="✨ IA en train de composer l'ambiance...";
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'x-api-key':apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:model,
+        max_tokens:2000,
+        system:AI_SYSTEM_PROMPT,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    const data=await res.json();
+    if(!res.ok){throw new Error((data&&data.error&&data.error.message)||('Erreur API HTTP '+res.status));}
+    const raw=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+    const clean=raw.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
+    let aiState;
+    try{aiState=JSON.parse(clean);}catch(e){throw new Error('Réponse IA illisible (JSON invalide).');}
+    pushUndo();
+    AI_LAYER_IDS.forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});
+    applyState(aiState);
+    mirrorColorPairs();
+    updateFontPreview();
+    document.querySelectorAll('.tcard,.bcard').forEach(e=>e.classList.remove('on'));
+    document.getElementById('status').textContent="✅ Ambiance générée par l'IA appliquée !";
+    setTimeout(()=>{document.getElementById('status').textContent='v7 Premium — Prévisualisation temps réel';},4000);
+    statusEl.className='rss-status ok';statusEl.textContent='✅ Ambiance appliquée avec succès.';
+  }catch(err){
+    console.error(err);
+    statusEl.className='rss-status err';statusEl.textContent='❌ '+err.message;
+    document.getElementById('status').textContent='v7 Premium — Prévisualisation temps réel';
+  }finally{
+    btn.disabled=false;btn.textContent=oldTxt;
+  }
+}
+
 function getPosXY(pos,w,h,pw,ph,pad){
   pad=pad||20;
   const map={tl:[pad,pad+ph],tc:[w/2,pad+ph],tr:[w-pad,pad+ph],ml:[pad,h/2],mc:[w/2,h/2],mr:[w-pad,h/2],bl:[pad,h-pad-ph],bc:[w/2,h-pad-ph],br:[w-pad,h-pad-ph]};
@@ -566,7 +701,7 @@ function getPosXY(pos,w,h,pw,ph,pad){
 function getTextAlign(pos){return{tl:'left',tc:'center',tr:'right',ml:'left',mc:'center',mr:'right',bl:'left',bc:'center',br:'right'}[pos]||'left';}
 
 function switchTab(name){
-  const tabs=['layers','colors','text','lower','export'];
+  const tabs=['layers','colors','text','lower','export','ai'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',tabs[i]===name));
   document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('on'));
   const el=document.getElementById('tab-'+name);if(el)el.classList.add('on');
@@ -851,7 +986,8 @@ function exportPNGSeq(){
 
 function captureState(){
   const state={};
-  document.querySelectorAll('#sidebar input,#sidebar select,#sidebar textarea').forEach(el=>{if(el.id&&el.type!=='file')state[el.id]=el.type==='checkbox'?el.checked:el.value;});
+  const aiExclude=['ai_apikey','ai_prompt','ai_model'];
+  document.querySelectorAll('#sidebar input,#sidebar select,#sidebar textarea').forEach(el=>{if(el.id&&el.type!=='file'&&!aiExclude.includes(el.id))state[el.id]=el.type==='checkbox'?el.checked:el.value;});
   state._titlePos=titlePos;state._wmPos=wmPos;state._logoPos=logoPos;state._textFmt={...textFmt};
   return state;
 }
@@ -859,8 +995,13 @@ function applyState(state){
   Object.entries(state).forEach(([id,v])=>{if(id.startsWith('_'))return;const el=document.getElementById(id);if(!el||el.type==='file')return;if(typeof v==='boolean')el.checked=v;else el.value=v;});
   if(state._titlePos)titlePos=state._titlePos;if(state._wmPos)wmPos=state._wmPos;if(state._logoPos)logoPos=state._logoPos;
   if(state._textFmt){textFmt={...state._textFmt};['bold','italic','underline','strike'].forEach(k=>{const el=document.getElementById('fmt_'+k);if(el)el.classList.toggle('on',textFmt[k]);});}
-  const sliders=[['s_parts','sv_parts'],['s_diag','sv_diag'],['s_circ','sv_circ'],['s_grid','sv_grid'],['s_hex','sv_hex'],['s_wave','sv_wave'],['s_data','sv_data'],['s_rain','sv_rain'],['s_aurora','sv_aurora'],['s_smoke','sv_smoke'],['s_cycle','sv_cycle'],['d_parts','dv_parts'],['t_title_size','tv_title_size'],['t_title_opacity','tv_title_opacity'],['t_ticker_speed','tv_ticker_speed'],['t_ticker_size','tv_ticker_size'],['t_wm_opacity','tv_wm_opacity'],['t_logo_size','tv_logo_size'],['t_logo_opacity','tv_logo_opacity'],['t_logo_rot','tv_logo_rot'],['lt_y','ltv_y'],['lt_dur','ltv_dur']];
-  sliders.forEach(([id,vid])=>{const el=document.getElementById(id);const vel=document.getElementById(vid);if(el&&vel){let v=el.value;if(id==='s_cycle')v+='s';if(id==='t_logo_rot')v+='°';if(id==='lt_dur')v+='s';vel.textContent=v;}});
+  document.querySelectorAll('#sidebar input[type=range]').forEach(el=>{
+    const m=(el.getAttribute('oninput')||'').match(/upSlider\('([^']+)','([^']+)'\)/);
+    if(!m)return;
+    const vel=document.getElementById(m[2]);if(!vel)return;
+    let v=el.value;if(el.id==='s_cycle')v+='s';if(el.id==='t_logo_rot')v+='°';if(el.id==='lt_dur')v+='s';
+    vel.textContent=v;
+  });
   updateFontPreview();
 }
 
@@ -893,6 +1034,11 @@ document.addEventListener('keydown',e=>{
 function loop(){pt+=1.2;toff+=1;updateAudio();drawFrame(pt,canvas.width,canvas.height,ctx);if(fsMode)drawFrame(pt,fsCanvas.width,fsCanvas.height,fsCtx);requestAnimationFrame(loop);}
 window.addEventListener('resize',()=>{resizeCanvas();if(fsMode){fsCanvas.width=window.innerWidth;fsCanvas.height=window.innerHeight;}});
 document.getElementById('sidebar').addEventListener('change',()=>pushUndo(),{capture:true});
+
+(function initAI(){
+  const k=localStorage.getItem('ai_api_key');if(k)document.getElementById('ai_apikey').value=k;
+  const m=localStorage.getItem('ai_model');if(m)document.getElementById('ai_model').value=m;
+})();
 
 resizeCanvas();refreshPresetList();initCubes();initRects();initNeons();initSmoke(1920,1080);drawBroadcastThumbs();updateFontPreview();setBroadcast('france24',document.querySelector('.bcard'));loop();
 </script>
