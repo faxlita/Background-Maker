@@ -182,16 +182,25 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 <div class="hint" style="margin-bottom:6px;">Ex: Ouverture, Journal, Buzz, Éducation, Fermeture</div>
 <p class="sec">Thème Broadcast Pro</p>
 <div class="broadcast-grid" id="broadcast-grid">
-  <div class="bcard on" onclick="setBroadcast('france24',this)"><canvas id="bc_france24" width="140" height="38"></canvas><div class="bcard-name">France 24</div></div>
+  <div class="bcard" onclick="setBroadcast('france24',this)"><canvas id="bc_france24" width="140" height="38"></canvas><div class="bcard-name">France 24</div></div>
   <div class="bcard" onclick="setBroadcast('bbc',this)"><canvas id="bc_bbc" width="140" height="38"></canvas><div class="bcard-name">BBC News</div></div>
   <div class="bcard" onclick="setBroadcast('cnn',this)"><canvas id="bc_cnn" width="140" height="38"></canvas><div class="bcard-name">CNN</div></div>
   <div class="bcard" onclick="setBroadcast('aljazeera',this)"><canvas id="bc_aljazeera" width="140" height="38"></canvas><div class="bcard-name">Al Jazeera</div></div>
   <div class="bcard" onclick="setBroadcast('vovonana',this)"><canvas id="bc_vovonana" width="140" height="38"></canvas><div class="bcard-name">VOVONANA</div></div>
   <div class="bcard" onclick="setBroadcast('custom',this)"><canvas id="bc_custom" width="140" height="38"></canvas><div class="bcard-name">Personnalisé</div></div>
 </div>
-<p class="sec">Thème Couleur</p>
+<p class="sec" style="font-size:8px;">Thèmes clairs</p>
 <div class="themes">
-  <div class="tcard on" onclick="setTheme('deep_blue',this)"><span class="tdot" style="background:#1a60d0"></span>Deep Blue</div>
+  <div class="tcard on" id="tcard-sky-azure" onclick="setTheme('sky_azure',this)"><span class="tdot" style="background:#1d5fd1"></span>Ciel Azur</div>
+  <div class="tcard" onclick="setTheme('ivory_gold',this)"><span class="tdot" style="background:#d9a400"></span>Ivoire & Or</div>
+  <div class="tcard" onclick="setTheme('mint_fresh',this)"><span class="tdot" style="background:#0e9e7e"></span>Menthe</div>
+  <div class="tcard" onclick="setTheme('soft_coral',this)"><span class="tdot" style="background:#e2543c"></span>Corail doux</div>
+  <div class="tcard" onclick="setTheme('pearl_slate',this)"><span class="tdot" style="background:#3e4c5e"></span>Perle Ardoise</div>
+  <div class="tcard" onclick="setTheme('custom',this)"><span class="tdot" style="background:#888"></span>Personnalisé</div>
+</div>
+<p class="sec" style="font-size:8px;">Thèmes sombres</p>
+<div class="themes">
+  <div class="tcard" onclick="setTheme('deep_blue',this)"><span class="tdot" style="background:#1a60d0"></span>Deep Blue</div>
   <div class="tcard" onclick="setTheme('green_gold',this)"><span class="tdot" style="background:#2da44e"></span>Vert Gold</div>
   <div class="tcard" onclick="setTheme('violet',this)"><span class="tdot" style="background:#7c3aed"></span>Violet</div>
   <div class="tcard" onclick="setTheme('dark_red',this)"><span class="tdot" style="background:#dc2626"></span>Dark Red</div>
@@ -200,15 +209,6 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
   <div class="tcard" onclick="setTheme('slate',this)"><span class="tdot" style="background:#64748b"></span>Slate</div>
   <div class="tcard" onclick="setTheme('nebula',this)"><span class="tdot" style="background:#ff6b9d"></span>Nébuleuse</div>
   <div class="tcard" onclick="setTheme('aurora',this)"><span class="tdot" style="background:#00e5ff"></span>Aurore</div>
-</div>
-<p class="sec" style="font-size:8px;">Thèmes clairs</p>
-<div class="themes">
-  <div class="tcard" onclick="setTheme('ivory_gold',this)"><span class="tdot" style="background:#d9a400"></span>Ivoire & Or</div>
-  <div class="tcard" onclick="setTheme('sky_azure',this)"><span class="tdot" style="background:#1d5fd1"></span>Ciel Azur</div>
-  <div class="tcard" onclick="setTheme('mint_fresh',this)"><span class="tdot" style="background:#0e9e7e"></span>Menthe</div>
-  <div class="tcard" onclick="setTheme('soft_coral',this)"><span class="tdot" style="background:#e2543c"></span>Corail doux</div>
-  <div class="tcard" onclick="setTheme('pearl_slate',this)"><span class="tdot" style="background:#3e4c5e"></span>Perle Ardoise</div>
-  <div class="tcard" onclick="setTheme('custom',this)"><span class="tdot" style="background:#888"></span>Personnalisé</div>
 </div>
 <p class="sec">Calques <span style="color:#333;font-size:8px;margin-left:3px;">sw=on/off · slider=opacité</span></p>
 <div class="layer-row" style="--accent:var(--acc-blue)"><i class="ti ti-gradienter lrow-icon" aria-hidden="true"></i><div class="lrow-main"><span class="lname">Dégradé de fond</span><input type="range" id="o_bg" min="0" max="1" step="0.05" value="1" oninput="upSlider('o_bg','ov_bg')"></div><label class="sw"><input type="checkbox" id="l_bg" checked><span class="sw-track"></span><span class="sw-thumb"></span></label><span class="lkey">1</span></div>
@@ -1182,7 +1182,7 @@ function importPreset(input){if(!input.files[0])return;const r=new FileReader();
 
 function copyVmixUrl(){const url=window.location.href;if(navigator.clipboard)navigator.clipboard.writeText(url);const el=document.getElementById('vmix-url-display');el.textContent=url;el.style.color='#22c55e';setTimeout(()=>el.style.color='#22c55e',3000);document.getElementById('status').textContent='📋 URL copiée !';setTimeout(()=>document.getElementById('status').textContent='v7 Premium — Prévisualisation temps réel',3000);}
 
-function resetDefaults(){pushUndo();setBroadcast('france24',document.querySelector('.bcard'));document.getElementById('c_bg').value='#020818';document.getElementById('c_bgT').value='#020818';document.getElementById('c_bg2').value='#020c1a';document.getElementById('c_bg2T').value='#020c1a';document.getElementById('c_glow').value='#1a60d0';document.getElementById('c_glowT').value='#1a60d0';document.getElementById('c_gold').value='#f5c200';document.getElementById('c_goldT').value='#f5c200';document.getElementById('c_line').value='#3b6fd4';document.getElementById('c_lineT').value='#3b6fd4';['l_bg','l_parts','l_diag','l_circles','l_grid','l_glow'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=true;});['l_hex','l_wave','l_data','l_nebula','l_rain','l_godrays','l_neon','l_floor','l_texture','l_scanlines','l_lightning','l_glitch','l_aurora','l_smoke','l_cubes','l_rect2d','l_colorycle','t_show_logo','t_show_wm'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});const tst=document.getElementById('t_show_title');if(tst)tst.checked=true;const tsk=document.getElementById('t_show_ticker');if(tsk)tsk.checked=true;}
+function resetDefaults(){pushUndo();setTheme('sky_azure',document.getElementById('tcard-sky-azure'));document.getElementById('c_bg').value='#eaf2fb';document.getElementById('c_bgT').value='#eaf2fb';document.getElementById('c_bg2').value='#dceaf8';document.getElementById('c_bg2T').value='#dceaf8';document.getElementById('c_glow').value='#1d5fd1';document.getElementById('c_glowT').value='#1d5fd1';document.getElementById('c_gold').value='#0a3d91';document.getElementById('c_goldT').value='#0a3d91';document.getElementById('c_line').value='#3b7ddb';document.getElementById('c_lineT').value='#3b7ddb';['l_bg','l_parts','l_diag','l_circles','l_grid','l_glow'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=true;});['l_hex','l_wave','l_data','l_nebula','l_rain','l_godrays','l_neon','l_floor','l_texture','l_scanlines','l_lightning','l_glitch','l_aurora','l_smoke','l_cubes','l_rect2d','l_colorycle','t_show_logo','t_show_wm'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});const tst=document.getElementById('t_show_title');if(tst)tst.checked=true;const tsk=document.getElementById('t_show_ticker');if(tsk)tsk.checked=true;}
 
 function updateBadge(){document.getElementById('res-badge').textContent=getC('e_res')+' · '+getC('e_fps')+'fps';}
 
@@ -1205,7 +1205,7 @@ document.getElementById('sidebar').addEventListener('change',()=>pushUndo(),{cap
 })();
 document.querySelectorAll('#sidebar input[type=range]').forEach(syncSliderFill);
 
-resizeCanvas();refreshPresetList();initCubes();initRects();initNeons();initSmoke(1920,1080);drawBroadcastThumbs();updateFontPreview();setBroadcast('france24',document.querySelector('.bcard'));loop();
+resizeCanvas();refreshPresetList();initCubes();initRects();initNeons();initSmoke(1920,1080);drawBroadcastThumbs();updateFontPreview();setTheme('sky_azure',document.getElementById('tcard-sky-azure'));loop();
 </script>
 </body>
 </html>
