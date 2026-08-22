@@ -547,7 +547,9 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
   <div class="crow"><input type="text" id="ai_apikey" placeholder="AIza..." style="font-family:monospace;"><button class="pbtn save" onclick="saveAIKey()">💾 Enregistrer</button></div>
   <div class="rss-status" id="ai-key-status"></div>
 </div>
-<div class="hint" style="margin-bottom:6px;">Stockée uniquement dans ton navigateur (localStorage) après clic sur Enregistrer, envoyée uniquement à l'API Gemini au moment de la génération. <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--gold);">Obtenir une clé →</a></div>
+<div class="hint" style="margin-bottom:6px;">Enregistrée dans ce navigateur après clic sur Enregistrer. <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--gold);">Obtenir une clé →</a></div>
+<button class="pbtn" style="width:100%;margin-bottom:4px;" onclick="downloadSelfContainedCopy()">📦 Télécharger une copie du fichier avec cette clé intégrée</button>
+<div class="hint" style="margin-bottom:8px;">Génère un exemplaire de cet outil où la clé est déjà pré-remplie dans le fichier — utilise cet exemplaire sur n'importe quel appareil, sans jamais retaper la clé. ⚠️ La clé sera en clair dans ce fichier : traite-le comme un mot de passe, ne le partage/publie jamais publiquement.</div>
 <div class="srow"><label>Modèle</label>
   <select id="ai_model" onchange="localStorage.setItem('ai_model',this.value)">
     <option value="gemini-3.7-flash" selected>Gemini 3.7 Flash (recommandé)</option>
@@ -763,6 +765,28 @@ function saveAIKey(){
   localStorage.setItem('ai_api_key',v);
   st.className='rss-status ok';st.textContent='✅ Clé enregistrée dans ce navigateur.';
   setTimeout(()=>{st.textContent='';st.className='rss-status';},3000);
+}
+
+function downloadSelfContainedCopy(){
+  const st=document.getElementById('ai-key-status');
+  const key=document.getElementById('ai_apikey').value.trim();
+  if(!key){st.className='rss-status err';st.textContent='⚠️ Colle une clé avant de générer la copie.';return;}
+  const ok=confirm("Cette copie du fichier contiendra ta clé API Gemini EN CLAIR dans son code source.\n\nNe la partage jamais publiquement (pas de dépôt public, pas d'envoi non chiffré, pas d'upload sur un site tiers). Traite-la comme un mot de passe.\n\nContinuer le téléchargement ?");
+  if(!ok)return;
+  const model=document.getElementById('ai_model').value;
+  const keyEl=document.getElementById('ai_apikey');
+  const modelEl=document.getElementById('ai_model');
+  keyEl.setAttribute('value',key);
+  Array.from(modelEl.options).forEach(o=>{if(o.value===model)o.setAttribute('selected','selected');else o.removeAttribute('selected');});
+  const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML;
+  keyEl.removeAttribute('value');
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='broadcast_bg_ma_config.html';a.click();
+  URL.revokeObjectURL(url);
+  st.className='rss-status ok';st.textContent='✅ Copie téléchargée — clé pré-intégrée, prête pour tout appareil.';
+  setTimeout(()=>{st.textContent='';st.className='rss-status';},5000);
 }
 
 function mirrorColorPairs(){
