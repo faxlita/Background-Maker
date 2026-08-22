@@ -102,6 +102,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 .btn{padding:6px 11px;background:var(--gold);color:#000;border:none;border-radius:var(--r);cursor:pointer;font-weight:700;font-size:11px;white-space:nowrap;}
 .btn:hover{opacity:.85;}
 .btn.sec{background:var(--s2);color:#aab8ac;border:1px solid var(--border);}
+.btn.sec.on{background:rgba(245,194,0,.12);color:var(--gold);border-color:var(--gold);}
 .btn.sec:hover{background:var(--border);}
 .btn.danger{background:#e53935;color:#fff;}
 .btn.danger:hover{background:#c62828;}
@@ -272,6 +273,8 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 <!-- TAB COLORS -->
 <div class="tab-content" id="tab-colors">
 <p class="sec">Couleurs</p>
+<div class="srow"><label>Clarté du fond</label><input type="range" id="bg_brightness" min="20" max="180" step="5" value="100" oninput="applyBgBrightness()"><span class="sval" id="bgv_brightness">100%</span></div>
+<div class="hint" style="margin-bottom:8px;">Assombrit ou éclaircit le fond du thème actif sans changer les couleurs d'accent. Se réinitialise à 100% quand tu changes de thème.</div>
 <div class="field"><label>Fond principal</label><div class="crow"><input type="color" id="c_bg" value="#020818" oninput="syncColor('c_bg','c_bgT')"><input type="text" id="c_bgT" value="#020818" oninput="syncColorT('c_bgT','c_bg')"></div></div>
 <div class="field"><label>Fond secondaire</label><div class="crow"><input type="color" id="c_bg2" value="#020c1a" oninput="syncColor('c_bg2','c_bg2T')"><input type="text" id="c_bg2T" value="#020c1a" oninput="syncColorT('c_bg2T','c_bg2')"></div></div>
 <div class="field"><label>Accent / Lueur</label><div class="crow"><input type="color" id="c_glow" value="#1a60d0" oninput="syncColor('c_glow','c_glowT')"><input type="text" id="c_glowT" value="#1a60d0" oninput="syncColorT('c_glowT','c_glow')"></div></div>
@@ -563,6 +566,14 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 <button class="btn sec" id="ai-refine-btn" style="width:100%;" onclick="refineAIPreset()">🎯 Affiner avec l'IA</button>
 <div class="rss-status" id="ai-refine-status"></div>
 <div class="hint" style="margin-top:6px;">L'IA compare la retouche à tes réglages actuels et ne change que ce qui est nécessaire. Utilise <kbd>Z</kbd> (Undo) pour revenir en arrière si le résultat ne te plaît pas.</div>
+<div class="lt-sep"></div>
+<p class="sec">Rédaction IA (bandeau & titre)</p>
+<div class="hint" style="margin-bottom:6px;">Colle un texte brut (communiqué, liste d'infos, script...), l'IA le transforme en bandeau déroulant prêt à l'emploi — et en titre si un titre clair s'en dégage.</div>
+<div class="field">
+  <textarea id="ai_text_source" style="min-height:70px;" placeholder="Ex: Ouverture du festival ce soir à 19h. Trois concerts au programme. Entrée gratuite pour les moins de 12 ans. Retransmission en direct sur nos plateformes..."></textarea>
+</div>
+<button class="btn sec" id="ai-text-btn" style="width:100%;" onclick="generateAIText()">📝 Générer le texte</button>
+<div class="rss-status" id="ai-text-status"></div>
 </div>
 </div><!-- /sidebar -->
 <div id="main">
@@ -575,6 +586,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
     <button class="btn sec sm" onclick="undo()" title="Undo (Z)">↩</button>
     <button class="btn sec sm" onclick="redo()" title="Redo (Y)">↪</button>
     <button class="btn sec sm" onclick="resetDefaults()" title="Reset">↻</button>
+    <button class="btn sec sm" id="btn-loop" onclick="toggleLoopPreview()" title="Aperçu en boucle — prévisualise exactement le cycle qui sera exporté">🔁 Boucle</button>
     <button class="btn sec sm" onclick="goFullscreen()" title="Plein écran (F)">⛶</button>
     <button class="btn sec sm" onclick="togglePresentation()" id="btn-pres">◻ Pres.</button>
     <button class="btn sec sm" onclick="takeScreenshot()">📷</button>
@@ -646,6 +658,7 @@ function setTheme(name,el){
   const t=THEMES[name];if(!t)return;
   setCol('c_bg',t.bg);setCol('c_bg2',t.bg2||t.bg);setCol('c_glow',t.glow);setCol('c_gold',t.gold);setCol('c_line',t.line);
   if(t.aurora)setCol('c_aurora',t.aurora);
+  resetBgBrightness();
 }
 
 function setBroadcast(name,el){
@@ -654,6 +667,27 @@ function setBroadcast(name,el){
   const b=BROADCAST[name];if(!b)return;
   setCol('c_bg',b.bg);setCol('c_bg2',b.bg2||b.bg);setCol('c_glow',b.glow);
   setCol('c_gold',b.gold);setCol('c_line',b.line);if(b.aurora)setCol('c_aurora',b.aurora);
+  resetBgBrightness();
+}
+
+let bgBrightnessBase=null;
+function resetBgBrightness(){
+  bgBrightnessBase={bg:getC('c_bg'),bg2:getC('c_bg2')};
+  const sl=document.getElementById('bg_brightness');if(sl)sl.value=100;
+  const sv=document.getElementById('bgv_brightness');if(sv)sv.textContent='100%';
+  if(sl)syncSliderFill(sl);
+}
+function hexToHsl(hex){const[r,g,b]=hexToRgb(hex).map(v=>v/255);const max=Math.max(r,g,b),min=Math.min(r,g,b);let h=0,s=0;const l=(max+min)/2;const d=max-min;if(d>0){s=l>0.5?d/(2-max-min):d/(max+min);switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;case b:h=(r-g)/d+4;break;}h/=6;}return[h*360,s*100,l*100];}
+function hslToHex(h,s,l){h/=360;s/=100;l/=100;let r,g,b;if(s===0){r=g=b=l;}else{const hue2rgb=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};const q=l<0.5?l*(1+s):l+s-l*s;const p=2*l-q;r=hue2rgb(p,q,h+1/3);g=hue2rgb(p,q,h);b=hue2rgb(p,q,h-1/3);}const toHex=v=>Math.round(v*255).toString(16).padStart(2,'0');return'#'+toHex(r)+toHex(g)+toHex(b);}
+function adjustHexLightness(hex,deltaL){const[h,s,l]=hexToHsl(hex);const nl=Math.min(97,Math.max(2,l+deltaL));return hslToHex(h,s,nl);}
+function applyBgBrightness(){
+  if(!bgBrightnessBase)resetBgBrightness();
+  const pct=+document.getElementById('bg_brightness').value;
+  const sv=document.getElementById('bgv_brightness');if(sv)sv.textContent=pct+'%';
+  const deltaL=(pct-100)*0.4;
+  setCol('c_bg',adjustHexLightness(bgBrightnessBase.bg,deltaL));
+  setCol('c_bg2',adjustHexLightness(bgBrightnessBase.bg2,deltaL));
+  syncSliderFill(document.getElementById('bg_brightness'));
 }
 
 function setPos(type,pos,el){
@@ -847,6 +881,68 @@ async function refineAIPreset(){
     document.getElementById('status').textContent='✅ Retouche IA appliquée !';
     setTimeout(()=>{document.getElementById('status').textContent='v7 Premium — Prévisualisation temps réel';},4000);
     statusEl.className='rss-status ok';statusEl.textContent='✅ Retouche appliquée ('+Object.keys(patch).length+' réglage(s) modifié(s)).';
+  }catch(err){
+    console.error(err);
+    statusEl.className='rss-status err';statusEl.textContent='❌ '+err.message;
+    document.getElementById('status').textContent='v7 Premium — Prévisualisation temps réel';
+  }finally{
+    btn.disabled=false;btn.textContent=oldTxt;
+  }
+}
+
+const AI_TEXT_SYSTEM_PROMPT=`Tu es rédacteur pour les incrustations texte d'un logiciel de fonds animés broadcast (bandeau déroulant + titre à l'écran). L'utilisateur te donne un texte source brut en français (communiqué, liste d'infos, script, mots-clés, notes en vrac...).
+
+Réponds UNIQUEMENT avec un objet JSON strict (pas de \`\`\`, pas de texte avant/après, pas de commentaires) contenant au maximum ces deux clés :
+
+- "t_ticker" : le texte du bandeau déroulant, OBLIGATOIRE, formaté EXACTEMENT selon ce style (reproduis la ponctuation à l'identique) : des items courts séparés par " ► " (le caractère ► entouré d'un espace de chaque côté), et si un item a des sous-points très courts à regrouper, sépare-les par " · " à l'intérieur du même item. Termine par " ►". Reste concis : chaque item doit se lire en quelques mots, jamais une phrase longue. Exemple de style attendu : "► Bienvenue  ►  VOVONANA  ►  Éducation · Buzz · Insolite  ►  Chaque midi  ►"
+- "t_title" : optionnel, un titre court et percutant (moins de 8 mots, en majuscules ou casse normale selon le ton), à inclure UNIQUEMENT si un vrai titre principal se dégage clairement du texte source. Si le texte est une simple liste d'infos sans titre évident, n'inclus pas cette clé.
+
+Réponds uniquement avec le JSON, rien d'autre.`;
+
+async function generateAIText(){
+  const promptEl=document.getElementById('ai_text_source');
+  const source=promptEl.value.trim();
+  const statusEl=document.getElementById('ai-text-status');
+  if(!source){statusEl.className='rss-status err';statusEl.textContent='⚠️ Colle un texte source à transformer.';return;}
+  const apiKey=document.getElementById('ai_apikey').value.trim();
+  if(!apiKey){statusEl.className='rss-status err';statusEl.textContent='⚠️ Renseigne ta clé API Gemini ci-dessus et clique sur Enregistrer.';return;}
+  const model=document.getElementById('ai_model').value;
+  const btn=document.getElementById('ai-text-btn');
+  const oldTxt=btn.textContent;
+  btn.disabled=true;btn.textContent='⏳ Rédaction en cours...';
+  statusEl.className='rss-status';statusEl.textContent='';
+  document.getElementById('status').textContent='📝 IA en train de rédiger le texte...';
+  try{
+    const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent';
+    const res=await fetch(url,{
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'x-goog-api-key':apiKey
+      },
+      body:JSON.stringify({
+        system_instruction:{parts:[{text:AI_TEXT_SYSTEM_PROMPT}]},
+        contents:[{role:'user',parts:[{text:source}]}],
+        generationConfig:{responseMimeType:'application/json',maxOutputTokens:800}
+      })
+    });
+    const data=await res.json();
+    if(!res.ok){throw new Error((data&&data.error&&data.error.message)||('Erreur API HTTP '+res.status));}
+    const cand=(data.candidates&&data.candidates[0])||null;
+    if(!cand){throw new Error('Aucune réponse renvoyée par Gemini (contenu bloqué ou vide).');}
+    const raw=((cand.content&&cand.content.parts)||[]).map(p=>p.text||'').join('').trim();
+    const clean=raw.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
+    let patch;
+    try{patch=JSON.parse(clean);}catch(e){throw new Error('Réponse IA illisible (JSON invalide).');}
+    if(!patch||typeof patch!=='object'||!patch.t_ticker){
+      throw new Error("L'IA n'a pas renvoyé de texte de bandeau exploitable.");
+    }
+    pushUndo();
+    applyState(patch);
+    const tsk=document.getElementById('t_show_ticker');if(tsk)tsk.checked=true;
+    document.getElementById('status').textContent='✅ Texte généré par l\u2019IA appliqué !';
+    setTimeout(()=>{document.getElementById('status').textContent='v7 Premium — Prévisualisation temps réel';},4000);
+    statusEl.className='rss-status ok';statusEl.textContent=patch.t_title?'✅ Bandeau et titre mis à jour.':'✅ Bandeau mis à jour.';
   }catch(err){
     console.error(err);
     statusEl.className='rss-status err';statusEl.textContent='❌ '+err.message;
@@ -1149,7 +1245,7 @@ function exportPNGSeq(){
 
 function captureState(){
   const state={};
-  const aiExclude=['ai_apikey','ai_prompt','ai_model','ai_refine_prompt'];
+  const aiExclude=['ai_apikey','ai_prompt','ai_model','ai_refine_prompt','ai_text_source'];
   document.querySelectorAll('#sidebar input,#sidebar select,#sidebar textarea').forEach(el=>{if(el.id&&el.type!=='file'&&!aiExclude.includes(el.id))state[el.id]=el.type==='checkbox'?el.checked:el.value;});
   state._titlePos=titlePos;state._wmPos=wmPos;state._logoPos=logoPos;state._textFmt={...textFmt};
   return state;
@@ -1158,6 +1254,13 @@ function applyState(state){
   Object.entries(state).forEach(([id,v])=>{if(id.startsWith('_'))return;const el=document.getElementById(id);if(!el||el.type==='file')return;if(typeof v==='boolean')el.checked=v;else el.value=v;});
   if(state._titlePos)titlePos=state._titlePos;if(state._wmPos)wmPos=state._wmPos;if(state._logoPos)logoPos=state._logoPos;
   if(state._textFmt){textFmt={...state._textFmt};['bold','italic','underline','strike'].forEach(k=>{const el=document.getElementById('fmt_'+k);if(el)el.classList.toggle('on',textFmt[k]);});}
+  if(state.c_bg||state.c_bg2){
+    bgBrightnessBase={bg:getC('c_bg'),bg2:getC('c_bg2')};
+    if(!('bg_brightness' in state)){
+      const sl=document.getElementById('bg_brightness');if(sl){sl.value=100;syncSliderFill(sl);}
+      const sv=document.getElementById('bgv_brightness');if(sv)sv.textContent='100%';
+    }
+  }
   document.querySelectorAll('#sidebar input[type=range]').forEach(el=>{
     syncSliderFill(el);
     const m=(el.getAttribute('oninput')||'').match(/upSlider\('([^']+)','([^']+)'\)/);
@@ -1195,7 +1298,13 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){exitFullscreen();if(presMode)togglePresentation();}
 });
 
-function loop(){pt+=1.2;toff+=1;updateAudio();drawFrame(pt,canvas.width,canvas.height,ctx);if(fsMode)drawFrame(pt,fsCanvas.width,fsCanvas.height,fsCtx);thumbCtx.drawImage(canvas,0,0,canvas.width,canvas.height,0,0,thumbCanvas.width,thumbCanvas.height);requestAnimationFrame(loop);}
+let loopPreview=false;
+function toggleLoopPreview(){
+  loopPreview=!loopPreview;
+  document.getElementById('btn-loop').classList.toggle('on',loopPreview);
+  if(loopPreview)pt=pt%1800;
+}
+function loop(){pt+=1.2;if(loopPreview)pt=pt%1800;toff+=1;updateAudio();drawFrame(pt,canvas.width,canvas.height,ctx);if(fsMode)drawFrame(pt,fsCanvas.width,fsCanvas.height,fsCtx);thumbCtx.drawImage(canvas,0,0,canvas.width,canvas.height,0,0,thumbCanvas.width,thumbCanvas.height);requestAnimationFrame(loop);}
 window.addEventListener('resize',()=>{resizeCanvas();if(fsMode){fsCanvas.width=window.innerWidth;fsCanvas.height=window.innerHeight;}});
 document.getElementById('sidebar').addEventListener('change',()=>pushUndo(),{capture:true});
 
