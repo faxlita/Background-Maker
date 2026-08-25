@@ -560,6 +560,32 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 <button class="btn" id="ai-generate-btn" style="width:100%;margin-top:6px;" onclick="generateAIPreset()">✨ Générer l'ambiance</button>
 <div class="rss-status" id="ai-status"></div>
 <div class="lt-sep"></div>
+<p class="sec">Fond studio IA (photoréaliste)</p>
+<div class="hint" style="margin-bottom:6px;">Décris un vrai plateau TV (canapés, écrans, architecture...) : l'IA génère une image de fond photoréaliste, posée en arrière-plan sous tes calques animés habituels.</div>
+<div class="field">
+  <textarea id="ai_studio_prompt" style="min-height:60px;" placeholder="Ex: Studio matinal lumineux, canapés arrondis rose pâle, plateau circulaire blanc, grand écran mur avec skyline au lever du soleil, éclairage doux"></textarea>
+</div>
+<div class="preset-row" style="flex-wrap:wrap;gap:4px;">
+  <button class="pbtn" onclick="fillStudioPrompt('Plateau de journal télévisé futuriste, bureau ovale violet et rose néon, écran LED géant en fond avec carte du monde bleutée, projecteurs suspendus, ambiance high-tech sobre, rendu 3D photoréaliste')">JT futuriste</button>
+  <button class="pbtn" onclick="fillStudioPrompt('Studio matinal lumineux, canapés arrondis rose pâle et gris, plateau circulaire à degrés blancs, grand écran mur avec skyline au lever du soleil, plafond en lattes violettes rayonnantes, éclairage doux')">Morning show</button>
+  <button class="pbtn" onclick="fillStudioPrompt('Studio d\'émission matinale cocooning, rideaux ondulés violet pastel, mobilier arrondi blanc/crème, arches dorées en fond, ambiance chaleureuse et arrondie, lumière douce')">Cocooning pastel</button>
+  <button class="pbtn" onclick="fillStudioPrompt('Plateau de talk-show nocturne, canapé courbe violet et or face à un public en gradins, skyline nocturne en fond avec lune, plafond à mille petites lumières dorées, ambiance glamour')">Talk-show nuit</button>
+</div>
+<div class="srow"><label>Qualité image</label>
+  <select id="ai_image_model">
+    <option value="gemini-3.1-flash-image" selected>Rapide (Nano Banana)</option>
+    <option value="gemini-3-pro-image">Qualité max (Nano Banana Pro)</option>
+  </select>
+</div>
+<button class="btn" id="ai-studio-btn" style="width:100%;margin-top:6px;" onclick="generateAIStudioBackground()">🖼️ Générer le fond studio</button>
+<div class="rss-status" id="ai-studio-status"></div>
+<div id="studio-preview-wrap" style="display:none;margin-top:8px;">
+  <img id="studio-preview-img" style="width:100%;border-radius:6px;display:block;">
+  <div class="srow" style="margin-top:6px;"><label>Effet respiration</label><input type="checkbox" id="studio_kenburns" checked></div>
+  <button class="pbtn" style="width:100%;margin-top:4px;" onclick="removeStudioBackground()">🗑️ Retirer le fond image</button>
+</div>
+<div class="hint" style="margin-top:6px;">L'image devient le fond fixe du canvas ; tes calques animés (particules, grille...) restent actifs par-dessus si tu ne les désactives pas — pense à les couper pour un rendu 100% photo.</div>
+<div class="lt-sep"></div>
 <p class="sec">Retouches finales</p>
 <div class="hint" style="margin-bottom:6px;">Une fois les réglages faits (à la main ou via l'IA), affine le résultat par petites touches sans tout recommencer.</div>
 <div class="field">
@@ -756,6 +782,67 @@ RÈGLES IMPORTANTES POUR LA RETOUCHE :
 - Réponds uniquement avec le JSON, rien d'autre.`;
 
 function fillAIPrompt(txt){document.getElementById('ai_prompt').value=txt;}
+function fillStudioPrompt(txt){document.getElementById('ai_studio_prompt').value=txt;}
+
+async function generateAIStudioBackground(){
+  const promptEl=document.getElementById('ai_studio_prompt');
+  const prompt=promptEl.value.trim();
+  const statusEl=document.getElementById('ai-studio-status');
+  if(!prompt){statusEl.className='rss-status err';statusEl.textContent='⚠️ Décris le plateau que tu veux générer.';return;}
+  const apiKey=document.getElementById('ai_apikey').value.trim();
+  if(!apiKey){statusEl.className='rss-status err';statusEl.textContent='⚠️ Renseigne ta clé API Gemini ci-dessus et clique sur Enregistrer.';return;}
+  const model=document.getElementById('ai_image_model').value;
+  const btn=document.getElementById('ai-studio-btn');
+  const oldTxt=btn.textContent;
+  btn.disabled=true;btn.textContent='⏳ Génération de l\u2019image (peut prendre 10-30s)...';
+  statusEl.className='rss-status';statusEl.textContent='';
+  document.getElementById('status').textContent='🖼️ IA en train de peindre le studio...';
+  try{
+    const fullPrompt='Décor de plateau de télévision vide, sans aucun présentateur ni personnage, sans aucun texte ni logo incrusté dans l\u2019image, cadrage large 16:9 destiné à servir de fond d\u2019incrustation télé : '+prompt+'. Rendu photoréaliste, haute qualité, éclairage cinématographique, aucune personne visible, aucun texte écrit dans l\u2019image.';
+    const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent';
+    const res=await fetch(url,{
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'x-goog-api-key':apiKey
+      },
+      body:JSON.stringify({
+        contents:[{role:'user',parts:[{text:fullPrompt}]}],
+        generationConfig:{responseModalities:['TEXT','IMAGE'],imageConfig:{aspectRatio:'16:9'}}
+      })
+    });
+    const data=await res.json();
+    if(!res.ok){throw new Error((data&&data.error&&data.error.message)||('Erreur API HTTP '+res.status));}
+    const cand=(data.candidates&&data.candidates[0])||null;
+    if(!cand){throw new Error('Aucune réponse renvoyée par Gemini (contenu bloqué ou vide).');}
+    const parts=(cand.content&&cand.content.parts)||[];
+    const imgPart=parts.find(p=>p.inlineData&&p.inlineData.data);
+    if(!imgPart){throw new Error("L'IA n'a pas renvoyé d'image (essaie de reformuler la description).");}
+    const dataUrl='data:'+(imgPart.inlineData.mimeType||'image/png')+';base64,'+imgPart.inlineData.data;
+    const img=new Image();
+    await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=dataUrl;});
+    pushUndo();
+    studioImage=img;
+    document.getElementById('studio-preview-img').src=dataUrl;
+    document.getElementById('studio-preview-wrap').style.display='block';
+    document.getElementById('status').textContent='✅ Fond studio généré par l\u2019IA appliqué !';
+    setTimeout(()=>{document.getElementById('status').textContent='v7 Premium — Prévisualisation temps réel';},4000);
+    statusEl.className='rss-status ok';statusEl.textContent='✅ Fond studio appliqué.';
+  }catch(err){
+    console.error(err);
+    statusEl.className='rss-status err';statusEl.textContent='❌ '+err.message;
+    document.getElementById('status').textContent='v7 Premium — Prévisualisation temps réel';
+  }finally{
+    btn.disabled=false;btn.textContent=oldTxt;
+  }
+}
+
+function removeStudioBackground(){
+  pushUndo();
+  studioImage=null;
+  document.getElementById('studio-preview-wrap').style.display='none';
+  document.getElementById('studio-preview-img').src='';
+}
 
 function saveAIKey(){
   const el=document.getElementById('ai_apikey');
@@ -1133,6 +1220,25 @@ function drawLowerThird(c,w,h){
   if(anim==='wipe')c.restore();c.restore();
 }
 
+let studioImage=null;
+function drawStudioBackground(c,w,h,t){
+  const img=studioImage;
+  const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;
+  if(!iw||!ih)return;
+  const coverScale=Math.max(w/iw,h/ih);
+  const baseW=iw*coverScale,baseH=ih*coverScale;
+  let scale=1,panX=0,panY=0;
+  if(getB('studio_kenburns')){
+    const phase=(t/1800)*Math.PI*2;
+    scale=1.06+0.035*Math.sin(phase);
+    panX=Math.sin(phase*0.5)*w*0.02;
+    panY=Math.cos(phase*0.5)*h*0.02;
+  }
+  const dw=baseW*scale,dh=baseH*scale;
+  const dx=(w-dw)/2+panX,dy=(h-dh)/2+panY;
+  c.drawImage(img,dx,dy,dw,dh);
+}
+
 function drawFrame(t,w,h,c){
   const bg=getC('c_bg'),bg2=getC('c_bg2'),glow=getC('c_glow'),gold=getC('c_gold'),line=getC('c_line'),auroraC=getC('c_aurora');
   const neon1=getC('c_neon1')||'#00e5ff',neon2=getC('c_neon2')||'#f5c200',floorC=getC('c_floor')||'#1a60d0';
@@ -1143,6 +1249,7 @@ function drawFrame(t,w,h,c){
 
   if(getB('l_bg')){const gr=c.createLinearGradient(0,0,w,h);gr.addColorStop(0,bgC);gr.addColorStop(0.5,bg2C);gr.addColorStop(1,bgC);c.fillStyle=gr;}else c.fillStyle=bgC;
   c.fillRect(0,0,w,h);
+  if(studioImage&&studioImage.complete)drawStudioBackground(c,w,h,t);
 
   const oAurora=+getC('o_aurora');
   if(getB('l_aurora')){c.save();const sAurora=+getC('s_aurora');for(let i=0;i<6;i++){const yBase=h*(0.1+i*0.05)+Math.sin(t*sAurora*0.01+i)*h*0.08;const gr=c.createLinearGradient(0,yBase,0,yBase+h*0.2);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(0.3,rgba(auroraC,oAurora*(0.5+Math.sin(t*0.02+i)*0.3)));gr.addColorStop(0.7,rgba(gold,oAurora*0.2));gr.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=gr;c.beginPath();for(let x=0;x<=w;x+=10){const y=yBase+Math.sin(x/120+t*sAurora*0.015+i)*40+Math.sin(x/60+t*sAurora*0.008)*20;x===0?c.moveTo(x,y):c.lineTo(x,y);}c.lineTo(w,yBase+h*0.2);c.lineTo(0,yBase+h*0.2);c.closePath();c.fill();}c.restore();}
@@ -1269,7 +1376,7 @@ function exportPNGSeq(){
 
 function captureState(){
   const state={};
-  const aiExclude=['ai_apikey','ai_prompt','ai_model','ai_refine_prompt','ai_text_source'];
+  const aiExclude=['ai_apikey','ai_prompt','ai_model','ai_refine_prompt','ai_text_source','ai_studio_prompt','ai_image_model'];
   document.querySelectorAll('#sidebar input,#sidebar select,#sidebar textarea').forEach(el=>{if(el.id&&el.type!=='file'&&!aiExclude.includes(el.id))state[el.id]=el.type==='checkbox'?el.checked:el.value;});
   state._titlePos=titlePos;state._wmPos=wmPos;state._logoPos=logoPos;state._textFmt={...textFmt};
   return state;
